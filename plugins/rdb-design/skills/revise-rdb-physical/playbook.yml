@@ -1,0 +1,47 @@
+version: 2
+name: revise-rdb-physical
+description: 既存RDB物理設計を負荷変化、競合、障害、実行計画、DBMS版変更で反証し、同じ正本へ更新する
+inputs: [user_input, existing_physical_document_path, logical_document_path, database_product, database_version, requirements_document_path, workload_document_path, quality_document_path, architecture_document_path, evidence_paths, references]
+
+requires:
+  - {plugin: grill, marketplace: grill}
+  - {plugin: write-doc, marketplace: write-doc}
+
+steps:
+  - id: preflight-inputs
+    script: scripts/input_paths.py
+    purpose: 既存物理正本、論理正本、任意の上流正本と証拠pathを改訂前に検査する
+    needs: [existing_physical_document_path, logical_document_path, requirements_document_path, workload_document_path, quality_document_path, architecture_document_path, evidence_paths, references]
+    provides: [validated_input_paths]
+
+  - id: challenge-physical-design
+    playbook: grill
+    purpose: 観測差、負荷・品質・基盤変更、DBMS版変更のうち答えで既存物理判断が変わる未決だけを確かめる
+    needs: [user_input, validated_input_paths, database_product, database_version]
+    provides: [decisions, open_questions]
+
+  - id: ground-changes
+    agent_work: invoking_agent
+    purpose: 既存設計時の根拠と現在入力を比較し、変更なし、確認済み変更、仮説、未確認、観測結果へ分ける
+    needs: [validated_input_paths, decisions, open_questions, existing_physical_document_path]
+    provides: [grounded_physical_inputs]
+
+  - id: revise-and-verify
+    skill: physical-design
+    purpose: 影響する物理判断を反証・改訂し、根拠と検証状態を持つ完成本文を検査する
+    needs: [grounded_physical_inputs, logical_document_path, existing_physical_document_path, database_product, database_version]
+    provides: [physical_final_markdown, physical_validation_report, requested_output_path, status]
+
+  - id: guard-update
+    script: scripts/update-guard.py
+    purpose: 更新先が入力された既存物理設計正本と同じ実体であることを検査する
+    needs: [existing_physical_document_path, requested_output_path, physical_validation_report]
+    provides: [update_target]
+
+  - id: update-document
+    playbook: write-doc
+    purpose: 検査済み本文をrdb-physical-design型で既存正本と同じpathへ保存する
+    input:
+      document_type: rdb-physical-design
+    needs: [physical_final_markdown, physical_validation_report, update_target, references]
+    provides: [updated_physical_rdb_design_path]

@@ -1,0 +1,17 @@
+> 作業を始める前に、workspace正本入口 `/Users/naoya-nakamoriq/Documents/Github/harness-pluginsv2/AGENTS.md` を読み、そこから指定される共通規約とこのrepository固有の規則を適用する。
+
+# AGENTS.md
+
+このrepositoryは、確定済みの論理データモデルと、要求・利用負荷・品質要求・基盤制約・観測結果を統合し、特定のRDB製品と版に対する物理設計を作成・改訂するsourceである。
+
+- marketplaceへ公開するインストール対象は`rdb-design` package 1件だけにする。
+- package manifestは`design-rdb-physical`と`revise-rdb-physical`の自己完結skill 2件を直接公開する。初回作成と既存正本の改訂は、独立して依頼・完了できる仕事として分ける。
+- 2入口が共有する、論理上の意味と不変条件を保ちながら物理写像・型・制約・index・トランザクション・配置・運用を決める判断は、内部skill `physical-design`が所有する。
+- 論理データモデル、要求、利用・負荷モデル、品質要求、基盤構成は入力正本として読み、変更しない。論理上の意味または業務不変条件の変更が必要なら、変更案と理由を返して該当正本の所有者へ戻す。
+- 技術列、派生表、冗長化、materialized view、partitionなど、業務意味を変えない物理写像は物理設計に置ける。論理表との1対1対応を要求しない。正本、同期、再構築、撤去方法を明示する。
+- HA/DR、cloud service、network、computeの全体構成は所有しない。入力された基盤構成がRDBの整合性、Read鮮度、transaction、復旧へ与える影響だけを扱う。
+- 実機測定が無い設計判断を実証済みにしない。公式仕様に基づく設計、仮説、実機で確認済みの結果を区別し、未実測なら検証計画と見直し条件を残す。
+- 資料のtemplateを持たない。成果物の節構成と記法は、保存に使う`write-doc`の`rdb-physical-design`型が所有する。
+- 利用者へ問う場面は公開playbook `grill`へ委ね、正本の保存は公開playbook `write-doc`へ委ねる。外部packageの内部実装を参照しない。
+- install cache、隣接repository、利用者の正本、外部環境を直接変更しない。このsource treeだけを編集する。
+- 変更後は`bash scripts/validate.sh`と、workspace rootの`bash scripts/validate.sh <このrepositoryの絶対path>`を実行する。

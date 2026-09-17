@@ -1,0 +1,27 @@
+{
+  "name": "rdb-design",
+  "version": "1.0.0",
+  "description": "根拠と検証状態を持つRDB物理設計の作成・改訂を提供する",
+  "author": {
+    "name": "NaoyaNakamori"
+  },
+  "skills": [
+    "./skills/design-rdb-physical",
+    "./skills/revise-rdb-physical"
+  ],
+  "metadata": {
+    "harness": {
+      "marketplace": "rdb-design",
+      "contractVersion": 1,
+      "internalPlugins": {
+        "physical-design": "./internal/physical-design"
+      }
+    }
+  },
+  "interface": {
+    "displayName": "RDB Design",
+    "capabilities": [
+      "Skills"
+    ]
+  }
+}
