@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "plugin": "rdb-design",
+  "version": "1.0.0",
+  "created_at": "2026-09-17T13:04:56Z",
+  "notes": "論理モデル、要求、負荷、品質、基盤制約を統合してRDB物理設計を新規作成または同一正本更新する独立packageを追加",
+  "breaking": "なし（新規package）",
+  "migration": "bdd-discovery-and-formulation/formulate-data-modelが担っていた物理設計はdesign-rdb-physicalまたはrevise-rdb-physicalへ移す",
+  "checks": {
+    "codex": {
+      "status": "manifest-and-contract-tests-passed",
+      "native-client-installation": "not-executed（merge後に導入）",
+      "evidence": "bash scripts/validate.sh: exit 0 (root contract and self-test passed; consumer contract lint 0 findings; physical design self-test passed)"
+    },
+    "claude": {
+      "status": "manifest-and-contract-tests-passed",
+      "native-client-installation": "not-executed（merge後に導入）",
+      "evidence": "bash scripts/validate.sh: exit 0 (consumer contract lint 0 findings)"
+    },
+    "root-validation": "workspace root scripts/validate.sh: Root validation passed"
+  },
+  "files": [
+    ".agents/plugins/marketplace.json",
+    "plugins/rdb-design/.codex-plugin/plugin.json",
+    ".claude-plugin/marketplace.json",
+    "plugins/rdb-design/.claude-plugin/plugin.json"
+  ]
+}

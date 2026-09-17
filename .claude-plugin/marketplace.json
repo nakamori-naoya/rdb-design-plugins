@@ -1,0 +1,15 @@
+{
+  "name": "rdb-design",
+  "owner": {
+    "name": "NaoyaNakamori"
+  },
+  "description": "論理モデルと負荷・品質・基盤制約からRDB物理設計を作成・改訂するmarketplace",
+  "plugins": [
+    {
+      "name": "rdb-design",
+      "source": "./plugins/rdb-design",
+      "description": "根拠と検証状態を持つRDB物理設計の作成・改訂を提供する",
+      "version": "1.0.0"
+    }
+  ]
+}
