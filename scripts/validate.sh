@@ -24,6 +24,18 @@ python3 "$PACKAGE/skills/design-rdb-physical/scripts/input_paths.py" self-test >
 python3 "$PACKAGE/skills/revise-rdb-physical/scripts/update-guard.py" self-test >/dev/null || status=1
 python3 "$PACKAGE/internal/physical-design/scripts/physical_design.py" self-test >/dev/null || status=1
 
+write_doc_examples="$ROOT/../write-doc-plugins/plugins/write-doc/skills/write-doc/assets/examples"
+physical_example="$write_doc_examples/rdb-physical-design.example.md"
+logical_example="$write_doc_examples/rdb-logical-data-modeling.example.md"
+if [ -f "$physical_example" ] && [ -f "$logical_example" ]; then
+  python3 "$PACKAGE/internal/physical-design/scripts/physical_design.py" check \
+    --model-file "$logical_example" --product PostgreSQL --version 16.4 \
+    < "$physical_example" >/dev/null || status=1
+else
+  echo '[error] write-docのRDB物理設計・論理設計の配布例が無い' >&2
+  status=1
+fi
+
 while IFS= read -r script; do
   PYTHONPYCACHEPREFIX="$TMP_ROOT/pycache" python3 -m py_compile "$script" || status=1
 done < <(find "$PACKAGE" -type f -name '*.py' | sort)

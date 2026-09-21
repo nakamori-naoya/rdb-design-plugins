@@ -3,7 +3,7 @@
   "plugin": "rdb-design",
   "version": "1.0.0",
   "created_at": "2026-09-17T13:04:56Z",
-  "notes": "論理モデル、要求、負荷、品質、基盤制約を統合してRDB物理設計を新規作成または同一正本更新する独立packageを追加",
+  "notes": "論理モデル、要求、負荷、品質、基盤制約を統合してRDB物理設計を新規作成または同一正式な定義更新する独立packageを追加",
   "breaking": "なし（新規package）",
   "migration": "bdd-discovery-and-formulation/formulate-data-modelが担っていた物理設計はdesign-rdb-physicalまたはrevise-rdb-physicalへ移す",
   "checks": {

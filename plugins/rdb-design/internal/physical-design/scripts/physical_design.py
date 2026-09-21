@@ -37,16 +37,16 @@ REQUIRED_HEADINGS = (
     "## 代表的な読み取り",
 )
 SOURCE_FIELDS = (
-    "- 要求正本:",
+    "- 要求資料:",
     "- 利用・負荷モデル:",
-    "- 品質要求正本:",
-    "- 基盤構成正本:",
+    "- 品質要求資料:",
+    "- 基盤構成資料:",
     "- 検証証拠:",
 )
 MAPPING_FIELDS = (
     "- 論理上の意味:",
     "- 物理実装:",
-    "- 正本と同期:",
+    "- 一次データと同期:",
     "- 再構築・撤去:",
     "- 不変条件の保存:",
 )
@@ -335,11 +335,11 @@ def sample(digest_value):
     return "\n".join((
         "# RDB物理設計", "## 対象と論理設計", "- 対象DBMS: PostgreSQL", "- 対象バージョン: 16",
         "- 論理モデル: logical.md", f"- 論理構造の指紋: sha256:{digest_value}",
-        "- 要求正本: requirements.md", "- 利用・負荷モデル: workload.md", "- 品質要求正本: quality.md",
-        "- 基盤構成正本: architecture.md", "- 検証証拠: なし（初期設計）",
+        "- 要求資料: requirements.md", "- 利用・負荷モデル: workload.md", "- 品質要求資料: quality.md",
+        "- 基盤構成資料: architecture.md", "- 検証証拠: なし（初期設計）",
         "## 物理制約", "同じ利用枠に有効な予約は一つ を排他制約で守る",
         "## 物理化の方針", "### 物理写像: 検索用生成列", "- 論理上の意味: 予約枠",
-        "- 物理実装: normalized_slot生成列", "- 正本と同期: reservationから同一transactionで生成",
+        "- 物理実装: normalized_slot生成列", "- 一次データと同期: reservationから同一transactionで生成",
         "- 再構築・撤去: 再生成後にindexを再作成", "- 不変条件の保存: 排他制約の意味を変えない",
         "## index", "### index: reservation_slot_excl", "- 対象: reservation(normalized_slot)", "- 種類: GiST",
         "- 目的: 重複予約の拒否", "- 列の順番: 単一列", "- 対象Read・更新: Read-001と予約作成",
@@ -376,6 +376,12 @@ def self_test():
         run = lambda body: subprocess.run(command, input=body, text=True, capture_output=True)
         good = run(design)
         assert good.returncode == 0 and json.loads(good.stdout)["status"] == "unresolved"
+        for current, deprecated in (
+            ("- 要求資料:", "- 要求の基準資料:"),
+            ("- 品質要求資料:", "- 品質要求の基準資料:"),
+            ("- 基盤構成資料:", "- 基盤構成の基準資料:"),
+        ):
+            assert run(design.replace(current, deprecated)).returncode == 1
         assert run("").returncode == 2
         assert run(design.replace("- 論理上の意味: 予約枠\n", "")).returncode == 1
         assert run(design.replace("- 検証状態: planned", "- 検証状態: maybe", 1)).returncode == 1
@@ -392,7 +398,7 @@ def self_test():
         with open(logical, "a", encoding="utf-8") as stream:
             stream.write("#### 列: created_at\n")
         assert run(design).returncode == 1
-    emit({"self_test": "passed", "cases": 9})
+    emit({"self_test": "passed", "cases": 12})
 
 
 def main():
