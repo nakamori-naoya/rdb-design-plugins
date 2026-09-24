@@ -1,5 +1,23 @@
 #!/usr/bin/env python3
-"""Validate the closed structural contract of an RDB physical-design document."""
+"""RDB物理設計の資料が、論理設計と構造上揃っているかを検査する。
+
+基準資料: 同梱の内部skill physical-design の SKILL.md と references（物理写像、分離性、CHECKの基準）。記法は write-doc の rdb-physical-design 型。
+入力: fingerprint は --model-file の論理データモデル。check は同じ論理データモデルと、標準入力の物理設計本文、--product と --version。
+正規化: 論理データモデルは「論理データモデル図」の erDiagram の実体と属性行、「論理テーブル定義」の ### と #### 業務制約: の名前を読み、
+  JSONへ並べ替えて sha256 を取る（論理構造の指紋）。物理設計は ## と ### の見出し、「- 項目: 値」の行、
+  「index」と「代表的な読み取り」の節の最初の表を読む。表のセルは前後の空白を除き、index の名前は backtick を外して比べる。
+合格述語: 必須の見出しが一度ずつある。対象DBMSと版、論理モデルのファイル名、現在の指紋が一行ずつある。入力根拠の欄が空でない。
+  BDDを複製していない。物理写像・分離性判断・機能・検証が一件以上あり、決まった欄が空でない。index と Read の表の列名が決まった並びで、
+  行が一件以上あり、セルが空でなく、名前が重複しない。Read の名前は Read- と3桁以上の数字。index が支える Read と、Read を支える index が
+  互いの表にある。検証状態は verified か planned。機能の根拠は https か local:。論理設計の業務制約の名前が本文に現れる。
+失敗時の診断: {"problem"} のJSONを1行ずつ標準出力へ。終了code 1。入力や引数が不正なら {"error"} と終了code 2。
+正例: self-test の sample と write-doc の rdb-physical-design の見本。
+反例: self-test の、旧い入力根拠の名前、物理写像の欄の欠落、許されない検証状態、https でない機能の根拠、BDDの混入、分離性判断の検証状態の欠落、
+  index の表の空のセルと列名の違い、Read の名前の違反と空のセル、表に無い Read や index への参照、業務制約の名前の欠落、論理構造の変更。
+境界例: すべて verified にした資料は ready になる。支えるindex が「なし」の Read は拒まない。
+意味評価として残す範囲: 物理制約が業務制約を本当に守るか、検証証拠が verified を支えるか、index と Read の根拠と費用の妥当性、
+  分離レベルと再試行の判断、CHECK を置くかの判断、導いた値を保存する判断。
+"""
 
 import argparse
 import hashlib
@@ -15,10 +33,9 @@ BUSINESS_CONSTRAINT = re.compile(r"^####\s+業務制約:\s*(.+?)\s*$")
 CONTENT_TABLE = re.compile(r"^###\s+(.+?)\s*$")
 BDD = re.compile(r"^(?:###\s+Scenario\b|\s*(?:Given|When|Then|And):?\s)", re.MULTILINE)
 MAPPING = re.compile(r"^###\s+物理写像:\s*(.+?)\s*$")
-INDEX = re.compile(r"^###\s+index:\s*(.+?)\s*$")
 ISOLATION = re.compile(r"^###\s+分離性判断:\s*(.+?)\s*$")
 FEATURE = re.compile(r"^###\s+機能:\s*(.+?)\s*$")
-READ = re.compile(r"^###\s+Read-[0-9]+:\s*(.+?)\s*$")
+READ_ID = re.compile(r"^Read-[0-9]{3,}$")
 VERIFICATION = re.compile(r"^###\s+検証:\s*(.+?)\s*$")
 ER_ENTITY = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)\s*\{$")
 ER_ATTRIBUTE = re.compile(r'^([A-Za-z_][A-Za-z0-9_\[\]]*)\s+([A-Za-z_][A-Za-z0-9_]*)\b')
@@ -50,22 +67,16 @@ MAPPING_FIELDS = (
     "- 再構築・撤去:",
     "- 不変条件の保存:",
 )
-INDEX_FIELDS = (
-    "- 対象:", "- 種類:", "- 目的:", "- 列の順番:",
-    "- 対象Read・更新:", "- 根拠:", "- 更新費用:", "- 検証状態:",
-)
+INDEX_COLUMNS = ("index", "対象", "種類", "支えるRead・更新", "更新費用", "検証状態")
 ISOLATION_FIELDS = ("検証状態:",)
-READ_FIELDS = (
-    "- 利用者と目的:", "- 入力・検索条件:", "- 結合:",
-    "- 並び順と上限:", "- 返す情報:", "- 鮮度と一貫性:",
-    "- 想定件数:", "- SLO:", "- 支えるindex:",
-)
+READ_COLUMNS = ("Read", "利用者", "並び順と上限", "鮮度と一貫性", "想定件数", "SLO", "支えるindex")
+READ_REFERENCE = re.compile(r"Read-[0-9]+")
+CODE_NAME = re.compile(r"`([^`]+)`")
 FEATURE_FIELDS = ("- 利用可能な版:", "- 根拠:", "- 検証状態:")
 VERIFICATION_FIELDS = (
     "- 対象:", "- 状態:", "- 方法:", "- 合格条件:", "- 見直し条件:", "- 根拠:",
 )
 VALID_STATES = {"verified", "planned"}
-ABSENT_EVIDENCE = re.compile(r"^\s*(?:なし|無し|未提供|未取得|未確認)(?:\s|[（(]|$)")
 
 
 def emit(value):
@@ -173,6 +184,46 @@ def sections(lines, pattern):
     return found
 
 
+def split_row(line):
+    return [cell.strip() for cell in line.strip().strip("|").split("|")]
+
+
+def section_table(lines, heading, columns, kind, problems):
+    """見出しの節の最初の表を、列名が columns と一致する表として読む。"""
+    if heading not in lines:
+        return []
+    start = lines.index(heading) + 1
+    end = next((i for i in range(start, len(lines)) if lines[i].startswith("## ")), len(lines))
+    body = lines[start:end]
+    first = next((i for i, line in enumerate(body) if line.startswith("|")), None)
+    if first is None:
+        problems.append(f"{kind}の表が無い")
+        return []
+    header = split_row(body[first])
+    if tuple(header) != columns:
+        problems.append(f"{kind}の表の列が『{' | '.join(columns)}』でない")
+        return []
+    rows = []
+    for line in body[first + 2:]:
+        if not line.startswith("|"):
+            break
+        cells = split_row(line)
+        if len(cells) != len(columns):
+            problems.append(f"{kind}の表の行の列数が{len(cells)}（{len(columns)}必要）: {cells[0]}")
+            continue
+        row = dict(zip(columns, cells))
+        for column in columns:
+            if not row[column]:
+                problems.append(f"{kind}『{cells[0]}』の『{column}』が空")
+        rows.append(row)
+    if not rows:
+        problems.append(f"{kind}の表に行が1件も無い")
+    names = [row[columns[0]] for row in rows]
+    for name in sorted({name for name in names if names.count(name) > 1}):
+        problems.append(f"{kind}『{name}』が重複")
+    return rows
+
+
 def require_fields(kind, values, fields, problems):
     for name, body in values:
         for field in fields:
@@ -240,35 +291,43 @@ def cmd_check(args):
     if BDD.search(design):
         problems.append("物理設計へBDDを複製しない")
     mappings = sections(lines, MAPPING)
-    indexes = sections(lines, INDEX)
+    indexes = section_table(lines, "## index", INDEX_COLUMNS, "index", problems)
     isolations = sections(lines, ISOLATION)
-    reads = sections(lines, READ)
+    reads = section_table(lines, "## 代表的な読み取り", READ_COLUMNS, "Read", problems)
     features = sections(lines, FEATURE)
     verifications = sections(lines, VERIFICATION)
-    for kind, values in (("物理写像", mappings), ("index", indexes), ("分離性判断", isolations), ("Read", reads), ("機能", features), ("検証", verifications)):
+    for kind, values in (("物理写像", mappings), ("分離性判断", isolations), ("機能", features), ("検証", verifications)):
         if not values:
             problems.append(f"### {kind}: の項目が1件も無い")
     require_fields("物理写像", mappings, MAPPING_FIELDS, problems)
-    require_fields("index", indexes, INDEX_FIELDS, problems)
     require_fields("分離性判断", isolations, ISOLATION_FIELDS, problems)
-    require_fields("Read", reads, READ_FIELDS, problems)
+    for row in reads:
+        if not READ_ID.match(row["Read"]):
+            problems.append(f"Readの名前はRead-と3桁以上の数字: {row['Read']}")
+    read_names = {row["Read"] for row in reads}
+    index_names = {CODE_NAME.sub(r"\1", row["index"]) for row in indexes}
+    for row in indexes:
+        for reference in READ_REFERENCE.findall(row["支えるRead・更新"]):
+            if reference not in read_names:
+                problems.append(f"index『{row['index']}』が支える『{reference}』が代表的な読み取りの表に無い")
+    for row in reads:
+        if row["支えるindex"] == "なし":
+            continue
+        for name in CODE_NAME.findall(row["支えるindex"]) or [row["支えるindex"]]:
+            if name not in index_names:
+                problems.append(f"Read『{row['Read']}』を支える『{name}』がindexの表に無い")
+    for row in indexes:
+        if row["検証状態"] and row["検証状態"] not in VALID_STATES:
+            problems.append(f"index『{row['index']}』の検証状態はverifiedまたはplanned: {row['検証状態']}")
     require_fields("機能", features, FEATURE_FIELDS, problems)
     require_fields("検証", verifications, VERIFICATION_FIELDS, problems)
-    for kind, values in (("index", indexes), ("機能", features)):
-        require_states(kind, values, problems)
+    require_states("機能", features, problems)
     require_states("分離性判断", isolations, problems, field="検証状態:")
     for name, body in verifications:
         state_lines = [line[len("- 状態:"):].strip() for line in body if line.startswith("- 状態:")]
         for state in state_lines:
             if state not in VALID_STATES:
                 problems.append(f"検証『{name}』の状態はverifiedまたはplanned: {state}")
-    evidence_sources = [line[len("- 検証証拠:"):].strip() for line in lines if line.startswith("- 検証証拠:")]
-    has_verified = any(
-        line in {"- 検証状態: verified", "検証状態: verified", "- 状態: verified"}
-        for line in lines
-    )
-    if has_verified and evidence_sources and ABSENT_EVIDENCE.search(evidence_sources[0]):
-        problems.append("検証証拠が無い資料でverifiedを主張しない")
     feature_names = [name for name, _ in features]
     if len(feature_names) != len(set(feature_names)):
         problems.append("採用機能名が重複")
@@ -280,13 +339,13 @@ def cmd_check(args):
     for table in signature.values():
         for constraint in set(table["constraints"]):
             if constraint not in design:
-                problems.append(f"論理設計の業務制約『{constraint}』を物理制約で扱っていない")
+                problems.append(f"論理設計の業務制約『{constraint}』の名前が本文に現れない")
     if problems:
         for problem in problems:
             emit({"problem": problem})
         raise SystemExit(1)
-    planned = sum(
-        1 for _, body in indexes + isolations + features
+    planned = sum(1 for row in indexes if row["検証状態"] == "planned") + sum(
+        1 for _, body in isolations + features
         if any(line in {"- 検証状態: planned", "検証状態: planned"} for line in body)
     ) + sum(1 for _, body in verifications if any(line == "- 状態: planned" for line in body))
     emit({
@@ -313,9 +372,11 @@ def sample(digest_value):
         "## 物理化の方針", "### 物理写像: 検索用生成列", "- 論理上の意味: 予約枠",
         "- 物理実装: normalized_slot生成列", "- 一次データと同期: reservationから同一transactionで生成",
         "- 再構築・撤去: 再生成後にindexを再作成", "- 不変条件の保存: 排他制約の意味を変えない",
-        "## index", "### index: reservation_slot_excl", "- 対象: reservation(normalized_slot)", "- 種類: GiST",
-        "- 目的: 重複予約の拒否", "- 列の順番: 単一列", "- 対象Read・更新: Read-001と予約作成",
-        "- 根拠: 負荷仮説", "- 更新費用: 測定予定", "- 検証状態: planned",
+        "## index",
+        "| index | 対象 | 種類 | 支えるRead・更新 | 更新費用 | 検証状態 |",
+        "|---|---|---|---|---|---|",
+        "| `reservation_slot_excl` | reservation(normalized_slot) | GiST | Read-001と予約作成 | 測定予定 | planned |",
+        "", "`reservation_slot_excl`は重複予約を拒む。根拠は負荷仮説。", "",
         "## トランザクションと分離レベル", "### 分離性判断: 同時予約",
         "予約Aと予約Bが同じ利用枠へ同時に進むと二重予約になりうる。READ COMMITTED と排他制約で一方を拒む。",
         "検証状態: planned",
@@ -324,10 +385,11 @@ def sample(digest_value):
         "- 根拠: https://www.postgresql.org/docs/16/", "- 検証状態: planned",
         "## 物理設計の完了条件", "### 検証: 同時予約", "- 対象: 排他制約", "- 状態: planned",
         "- 方法: 二transactionを交差実行", "- 合格条件: 一方だけ成立", "- 見直し条件: 競合率増加", "- 根拠: 初期設計",
-        "## 未決", "実機結果", "## 代表的な読み取り", "### Read-001: 空き枠を探す",
-        "- 利用者と目的: 予約者", "- 入力・検索条件: 日付", "- 結合: なし", "- 並び順と上限: 開始時刻, 100",
-        "- 返す情報: slot", "- 鮮度と一貫性: primary", "- 想定件数: 1000", "- SLO: p95 100ms",
-        "- 支えるindex: reservation_slot_excl", "",
+        "## 未決", "実機結果", "## 代表的な読み取り",
+        "| Read | 利用者 | 並び順と上限 | 鮮度と一貫性 | 想定件数 | SLO | 支えるindex |",
+        "|---|---|---|---|---|---|---|",
+        "| Read-001 | 予約者 | 開始時刻, 100 | primary | 1000 | p95 100ms | `reservation_slot_excl` |",
+        "", "Read-001は、日付で空き枠を探す。", "",
     ))
 
 
@@ -356,22 +418,29 @@ def self_test():
             assert run(design.replace(current, deprecated)).returncode == 1
         assert run("").returncode == 2
         assert run(design.replace("- 論理上の意味: 予約枠\n", "")).returncode == 1
-        assert run(design.replace("- 検証状態: planned", "- 検証状態: maybe", 1)).returncode == 1
+        assert run(design.replace("| 測定予定 | planned |", "| 測定予定 | maybe |")).returncode == 1
+        assert run(design.replace("| 測定予定 | planned |", "| 測定予定 |  |")).returncode == 1
+        assert run(design.replace("| index | 対象 |", "| 名前 | 対象 |")).returncode == 1
+        assert run(design.replace("| Read-001 |", "| R1 |")).returncode == 1
+        assert run(design.replace("| p95 100ms |", "| |")).returncode == 1
+        assert run(design.replace("| Read-001と予約作成 |", "| Read-002と予約作成 |")).returncode == 1
+        assert run(design.replace("| `reservation_slot_excl` |\n", "| `slot_idx` |\n")).returncode == 1
+        missing = run(design.replace("同じ利用枠に有効な予約は一つ を排他制約で守る", "排他制約で守る"))
+        assert missing.returncode == 1 and "の名前が本文に現れない" in missing.stdout
         assert run(design.replace("https://www.postgresql.org/docs/16/", "記憶")).returncode == 1
         assert run(design.replace("### 物理写像: 検索用生成列", "### Scenario: 混入")).returncode == 1
         assert run(design.replace("検証状態: planned\n## パーティション", "## パーティション")).returncode == 1
-        unsupported_verified = design.replace("検証状態: planned", "検証状態: verified").replace("- 状態: planned", "- 状態: verified")
-        assert run(unsupported_verified).returncode == 1
-        verified = unsupported_verified.replace(
-            "- 検証証拠: なし（初期設計）",
-            "- 検証証拠: local:/evidence/physical-verification.json",
+        verified = (
+            design.replace("検証状態: planned", "検証状態: verified")
+            .replace("- 状態: planned", "- 状態: verified")
+            .replace("| 測定予定 | planned |", "| 測定予定 | verified |")
         )
         ready = run(verified)
         assert ready.returncode == 0 and json.loads(ready.stdout)["status"] == "ready"
         with open(logical, "w", encoding="utf-8") as stream:
             stream.write(logical_text.replace('        tstzrange slot "利用枠"', '        tstzrange slot "利用枠"\n        text note "メモ"'))
         assert run(design).returncode == 1
-    emit({"self_test": "passed", "cases": 13})
+    emit({"self_test": "passed", "cases": 20})
 
 
 def main():
