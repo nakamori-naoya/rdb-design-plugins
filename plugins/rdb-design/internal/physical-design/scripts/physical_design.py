@@ -11,8 +11,6 @@ import sys
 import tempfile
 
 
-TABLE = re.compile(r"^###\s+テーブル:\s*(.+?)\s*$")
-COLUMN = re.compile(r"^####\s+列:\s*(.+?)\s*$")
 BUSINESS_CONSTRAINT = re.compile(r"^####\s+業務制約:\s*(.+?)\s*$")
 CONTENT_TABLE = re.compile(r"^###\s+(.+?)\s*$")
 BDD = re.compile(r"^(?:###\s+Scenario\b|\s*(?:Given|When|Then|And):?\s)", re.MULTILINE)
@@ -22,6 +20,8 @@ ISOLATION = re.compile(r"^###\s+分離性判断:\s*(.+?)\s*$")
 FEATURE = re.compile(r"^###\s+機能:\s*(.+?)\s*$")
 READ = re.compile(r"^###\s+Read-[0-9]+:\s*(.+?)\s*$")
 VERIFICATION = re.compile(r"^###\s+検証:\s*(.+?)\s*$")
+ER_ENTITY = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)\s*\{$")
+ER_ATTRIBUTE = re.compile(r'^([A-Za-z_][A-Za-z0-9_\[\]]*)\s+([A-Za-z_][A-Za-z0-9_]*)\b')
 
 REQUIRED_HEADINGS = (
     "## 対象と論理設計",
@@ -54,11 +54,7 @@ INDEX_FIELDS = (
     "- 対象:", "- 種類:", "- 目的:", "- 列の順番:",
     "- 対象Read・更新:", "- 根拠:", "- 更新費用:", "- 検証状態:",
 )
-ISOLATION_FIELDS = (
-    "- 同時に進む操作:", "- 許してはいけない結果:", "- 発生し得る現象:",
-    "- 選択する分離レベル:", "- 併用する仕組み:",
-    "- 対象バージョンでの確認:", "- 競合時の扱い:", "- 検証状態:",
-)
+ISOLATION_FIELDS = ("検証状態:",)
 READ_FIELDS = (
     "- 利用者と目的:", "- 入力・検索条件:", "- 結合:",
     "- 並び順と上限:", "- 返す情報:", "- 鮮度と一貫性:",
@@ -97,80 +93,55 @@ def logical_signature(text, problems):
     signature = {}
     current = None
     source_lines = text.splitlines()
-    if any(TABLE.match(line) for line in source_lines):
-        for line in source_lines:
-            table = TABLE.match(line)
-            if table:
-                current = table.group(1)
-                if current in signature:
-                    problems.append(f"論理モデルでテーブル『{current}』が重複")
+    # 論理データモデルの型: 列は「論理データモデル図」の erDiagram だけにあり、「論理テーブル定義」は ### と業務制約を持つ。
+    er_start = source_lines.index("## 論理データモデル図") + 1 if "## 論理データモデル図" in source_lines else -1
+    if er_start >= 0:
+        er_end = next((i for i in range(er_start, len(source_lines)) if source_lines[i].startswith("## ")), len(source_lines))
+        in_er = False
+        entity = None
+        for line in source_lines[er_start:er_end]:
+            stripped = line.strip()
+            if stripped.startswith("```"):
+                in_er, entity = False, None
+                continue
+            if stripped == "erDiagram":
+                in_er = True
+                continue
+            if not in_er:
+                continue
+            opened = ER_ENTITY.match(stripped)
+            if opened:
+                entity = opened.group(1)
+                signature.setdefault(entity, {"columns": [], "constraints": [], "definitions": []})
+                continue
+            if stripped == "}":
+                entity = None
+                continue
+            if entity:
+                attribute = ER_ATTRIBUTE.match(stripped)
+                if attribute and attribute.group(2) not in signature[entity]["columns"]:
+                    signature[entity]["columns"].append(attribute.group(2))
+                    signature[entity]["definitions"].append(stripped)
+    try:
+        start = source_lines.index("## 論理テーブル定義") + 1
+    except ValueError:
+        start = -1
+    if start >= 0:
+        end = next(
+            (index for index in range(start, len(source_lines)) if source_lines[index].startswith("## ")),
+            len(source_lines),
+        )
+        current = None
+        for line in source_lines[start:end]:
+            heading = CONTENT_TABLE.match(line)
+            if heading:
+                code_names = re.findall(r"`([^`]+)`", heading.group(1))
+                current = code_names[0] if code_names else heading.group(1).strip()
                 signature.setdefault(current, {"columns": [], "constraints": [], "definitions": []})
                 continue
-            column = COLUMN.match(line)
             constraint = BUSINESS_CONSTRAINT.match(line)
-            if not column and not constraint:
-                continue
-            if current is None:
-                problems.append(f"論理モデルでテーブル外に列または業務制約がある: {line}")
-                continue
-            kind = "columns" if column else "constraints"
-            name = (column or constraint).group(1)
-            if name in signature[current][kind]:
-                problems.append(f"論理モデルのテーブル『{current}』で『{name}』が重複")
-            signature[current][kind].append(name)
-    if not signature:
-        try:
-            start = source_lines.index("## 論理テーブル定義") + 1
-        except ValueError:
-            start = -1
-        if start >= 0:
-            end = next(
-                (index for index in range(start, len(source_lines)) if source_lines[index].startswith("## ")),
-                len(source_lines),
-            )
-            current = None
-            detail_table = False
-            for line in source_lines[start:end]:
-                heading = CONTENT_TABLE.match(line)
-                if heading:
-                    raw_name = heading.group(1).strip()
-                    detail_table = raw_name == "詳細イベント"
-                    if detail_table:
-                        current = None
-                    else:
-                        code_names = re.findall(r"`([^`]+)`", raw_name)
-                        current = code_names[0] if code_names else raw_name
-                        if current in signature:
-                            problems.append(f"論理モデルでテーブル『{current}』が重複")
-                        signature.setdefault(current, {"columns": [], "constraints": [], "definitions": []})
-                    continue
-                constraint = BUSINESS_CONSTRAINT.match(line)
-                if constraint and current:
-                    signature[current]["constraints"].append(constraint.group(1))
-                    continue
-                if not line.startswith("|") or line.startswith("|---"):
-                    continue
-                cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
-                if detail_table and len(cells) >= 2:
-                    table_names = re.findall(r"`([^`]+)`", cells[0])
-                    column_names = re.findall(r"`([^`]+)`", cells[1])
-                    if table_names:
-                        current_detail = table_names[0]
-                        signature.setdefault(
-                            current_detail,
-                            {"columns": [], "constraints": [], "definitions": []},
-                        )
-                        signature[current_detail]["definitions"].append("|".join(cells))
-                        for column_name in column_names:
-                            if column_name not in signature[current_detail]["columns"]:
-                                signature[current_detail]["columns"].append(column_name)
-                    continue
-                if current and cells:
-                    column_names = re.findall(r"`([^`]+)`", cells[0])
-                    if column_names:
-                        if column_names[0] not in signature[current]["columns"]:
-                            signature[current]["columns"].append(column_names[0])
-                        signature[current]["definitions"].append("|".join(cells))
+            if constraint and current:
+                signature[current]["constraints"].append(constraint.group(1))
     if not signature:
         problems.append("論理モデルに論理テーブル定義が1件も無い")
     return signature
@@ -283,8 +254,9 @@ def cmd_check(args):
     require_fields("Read", reads, READ_FIELDS, problems)
     require_fields("機能", features, FEATURE_FIELDS, problems)
     require_fields("検証", verifications, VERIFICATION_FIELDS, problems)
-    for kind, values in (("index", indexes), ("分離性判断", isolations), ("機能", features)):
+    for kind, values in (("index", indexes), ("機能", features)):
         require_states(kind, values, problems)
+    require_states("分離性判断", isolations, problems, field="検証状態:")
     for name, body in verifications:
         state_lines = [line[len("- 状態:"):].strip() for line in body if line.startswith("- 状態:")]
         for state in state_lines:
@@ -292,7 +264,7 @@ def cmd_check(args):
                 problems.append(f"検証『{name}』の状態はverifiedまたはplanned: {state}")
     evidence_sources = [line[len("- 検証証拠:"):].strip() for line in lines if line.startswith("- 検証証拠:")]
     has_verified = any(
-        line in {"- 検証状態: verified", "- 状態: verified"}
+        line in {"- 検証状態: verified", "検証状態: verified", "- 状態: verified"}
         for line in lines
     )
     if has_verified and evidence_sources and ABSENT_EVIDENCE.search(evidence_sources[0]):
@@ -315,7 +287,7 @@ def cmd_check(args):
         raise SystemExit(1)
     planned = sum(
         1 for _, body in indexes + isolations + features
-        if any(line == "- 検証状態: planned" for line in body)
+        if any(line in {"- 検証状態: planned", "検証状態: planned"} for line in body)
     ) + sum(1 for _, body in verifications if any(line == "- 状態: planned" for line in body))
     emit({
         "check": "aligned",
@@ -344,10 +316,9 @@ def sample(digest_value):
         "## index", "### index: reservation_slot_excl", "- 対象: reservation(normalized_slot)", "- 種類: GiST",
         "- 目的: 重複予約の拒否", "- 列の順番: 単一列", "- 対象Read・更新: Read-001と予約作成",
         "- 根拠: 負荷仮説", "- 更新費用: 測定予定", "- 検証状態: planned",
-        "## トランザクションと分離レベル", "### 分離性判断: 同時予約", "- 同時に進む操作: 予約Aと予約B",
-        "- 許してはいけない結果: 二重予約", "- 発生し得る現象: 書き込みスキュー",
-        "- 選択する分離レベル: READ COMMITTED", "- 併用する仕組み: 排他制約",
-        "- 対象バージョンでの確認: 実機試験予定", "- 競合時の扱い: 一方を拒否", "- 検証状態: planned",
+        "## トランザクションと分離レベル", "### 分離性判断: 同時予約",
+        "予約Aと予約Bが同じ利用枠へ同時に進むと二重予約になりうる。READ COMMITTED と排他制約で一方を拒む。",
+        "検証状態: planned",
         "## パーティションと配置", "partitionなし。基盤構成に従う。", "## 容量・性能・運用", "測定予定。",
         "## 採用するRDB機能", "### 機能: 排他制約", "- 利用可能な版: 9.0",
         "- 根拠: https://www.postgresql.org/docs/16/", "- 検証状態: planned",
@@ -362,8 +333,9 @@ def sample(digest_value):
 
 def self_test():
     logical_text = "\n".join((
-        "# 論理設計", "## 論理テーブル定義", "### テーブル: reservation",
-        "#### 列: id", "#### 列: slot", "#### 業務制約: 同じ利用枠に有効な予約は一つ", "",
+        "# 論理設計", "## 論理データモデル図", "```mermaid", "erDiagram", "    reservation {",
+        '        uuid id PK "予約"', '        tstzrange slot "利用枠"', "    }", "```",
+        "## 論理テーブル定義", "### `reservation`（予約）", "予約。", "#### 業務制約: 同じ利用枠に有効な予約は一つ", "",
     ))
     with tempfile.TemporaryDirectory() as directory:
         logical = os.path.join(directory, "logical.md")
@@ -387,7 +359,8 @@ def self_test():
         assert run(design.replace("- 検証状態: planned", "- 検証状態: maybe", 1)).returncode == 1
         assert run(design.replace("https://www.postgresql.org/docs/16/", "記憶")).returncode == 1
         assert run(design.replace("### 物理写像: 検索用生成列", "### Scenario: 混入")).returncode == 1
-        unsupported_verified = design.replace("- 検証状態: planned", "- 検証状態: verified").replace("- 状態: planned", "- 状態: verified")
+        assert run(design.replace("検証状態: planned\n## パーティション", "## パーティション")).returncode == 1
+        unsupported_verified = design.replace("検証状態: planned", "検証状態: verified").replace("- 状態: planned", "- 状態: verified")
         assert run(unsupported_verified).returncode == 1
         verified = unsupported_verified.replace(
             "- 検証証拠: なし（初期設計）",
@@ -395,10 +368,10 @@ def self_test():
         )
         ready = run(verified)
         assert ready.returncode == 0 and json.loads(ready.stdout)["status"] == "ready"
-        with open(logical, "a", encoding="utf-8") as stream:
-            stream.write("#### 列: created_at\n")
+        with open(logical, "w", encoding="utf-8") as stream:
+            stream.write(logical_text.replace('        tstzrange slot "利用枠"', '        tstzrange slot "利用枠"\n        text note "メモ"'))
         assert run(design).returncode == 1
-    emit({"self_test": "passed", "cases": 12})
+    emit({"self_test": "passed", "cases": 13})
 
 
 def main():
