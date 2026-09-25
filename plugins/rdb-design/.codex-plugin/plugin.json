@@ -1,6 +1,6 @@
 {
   "name": "rdb-design",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "description": "根拠と検証状態を持つRDB物理設計の作成と見直しを提供する",
   "author": {
     "name": "NaoyaNakamori"
