@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "plugin": "rdb-design",
+  "version": "2.0.0",
+  "created_at": "2026-09-25T07:44:14.233115+00:00",
+  "notes": "physical_design.py が見出しの文言ではなく write-doc の公開契約の目印だけを読むようにした。分離レベルと再試行の持ち主を物理設計に置き、Read 台帳と値域の CHECK の置き場を定めた。改訂時の出力 requested_output_path を内部 skill の出力の契約に書いた。曖昧な権威表現を具体的な用語へ置き換えた。",
+  "breaking": "物理設計資料の形（Read 台帳、分離性判断、目印）と検査の述語が変わった。旧い版の資料は新しい検査を通らないことがある。",
+  "migration": "marketplace を update し plugin を再 install する。write-doc 10.0.0 と併せて導入し、既存の物理設計は revise-rdb-physical で直す。",
+  "checks": {
+    "codex": {
+      "status": "manifest-and-contract-tests-passed",
+      "native-client-installation": "not-executed（merge 後に install-plugins.sh で導入）",
+      "evidence": "bash scripts/validate.sh: exit 0 (Validation: passed)"
+    },
+    "claude": {
+      "status": "manifest-and-contract-tests-passed",
+      "native-client-installation": "not-executed（merge 後に install-plugins.sh で導入）",
+      "evidence": "bash scripts/validate.sh: exit 0 (Validation: passed)"
+    },
+    "root-validation": "root scripts/validate.sh rdb-design-plugins: Root validation: passed"
+  },
+  "files": [
+    ".agents/plugins/marketplace.json",
+    "plugins/rdb-design/.codex-plugin/plugin.json",
+    ".claude-plugin/marketplace.json",
+    "plugins/rdb-design/.claude-plugin/plugin.json"
+  ]
+}
