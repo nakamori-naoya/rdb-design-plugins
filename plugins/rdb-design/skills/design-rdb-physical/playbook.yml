@@ -1,6 +1,6 @@
 version: 2
 name: design-rdb-physical
-description: 論理モデルと負荷・品質・基盤制約から、根拠と検証状態を持つRDB物理設計の正式な定義を新規作成する
+description: 論理モデルと負荷・品質・基盤制約から、根拠と検証状態を持つRDB物理設計資料を新規作成する
 inputs: [user_input, logical_document_path, database_product, database_version, requirements_document_path, workload_document_path, quality_document_path, architecture_document_path, evidence_paths, references, output_directory, name]
 
 requires:
@@ -10,7 +10,7 @@ requires:
 steps:
   - id: preflight-inputs
     script: scripts/input_paths.py
-    purpose: 必須・任意の正式な定義のpathと証拠pathが絶対pathの通常fileとして読めることを設計前に検査する
+    purpose: 必須・任意の入力資料のpathと証拠pathが絶対pathの通常fileとして読めることを設計前に検査する
     needs: [logical_document_path, requirements_document_path, workload_document_path, quality_document_path, architecture_document_path, evidence_paths, references]
     provides: [validated_input_paths]
 
