@@ -10,8 +10,7 @@
   ],
   "metadata": {
     "harness": {
-      "marketplace": "rdb-design",
-      "contractVersion": 1
+      "marketplace": "rdb-design"
     }
   }
 }
