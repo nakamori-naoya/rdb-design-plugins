@@ -9,7 +9,7 @@
       "name": "rdb-design",
       "source": "./plugins/rdb-design",
       "description": "根拠と検証状態を持つRDB物理設計の作成と見直しを提供する",
-      "version": "2.0.0"
+      "version": "3.0.0"
     }
   ]
 }
