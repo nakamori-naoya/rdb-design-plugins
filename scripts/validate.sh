@@ -16,21 +16,17 @@ python3 "$TOOLS/validate-plugin-repository.py" --self-test || status=1
 version=$(jq -r '.plugins[0].version' "$ROOT/.agents/plugins/marketplace.json")
 jq -e --arg version "$version" '.name=="rdb-design" and .plugins[0].name=="rdb-design" and .plugins[0].source.path=="./plugins/rdb-design" and .plugins[0].version==$version' "$ROOT/.agents/plugins/marketplace.json" >/dev/null || status=1
 jq -e --arg version "$version" '.name=="rdb-design" and .plugins[0].name=="rdb-design" and .plugins[0].source=="./plugins/rdb-design" and .plugins[0].version==$version' "$ROOT/.claude-plugin/marketplace.json" >/dev/null || status=1
-jq -e --arg version "$version" '.name=="rdb-design" and .version==$version and .skills==["./skills/design-rdb-physical","./skills/revise-rdb-physical"]' "$PACKAGE/.claude-plugin/plugin.json" "$PACKAGE/.codex-plugin/plugin.json" >/dev/null || status=1
+jq -e --arg version "$version" '.name=="rdb-design" and .version==$version and .skills==["./skills/design-rdb-physical"]' "$PACKAGE/.claude-plugin/plugin.json" "$PACKAGE/.codex-plugin/plugin.json" >/dev/null || status=1
 diff <(jq -S 'del(.interface)' "$PACKAGE/.claude-plugin/plugin.json") <(jq -S 'del(.interface)' "$PACKAGE/.codex-plugin/plugin.json") >/dev/null || status=1
 
-cmp -s "$PACKAGE/skills/design-rdb-physical/scripts/input_paths.py" "$PACKAGE/skills/revise-rdb-physical/scripts/input_paths.py" || status=1
-python3 "$PACKAGE/skills/design-rdb-physical/scripts/input_paths.py" self-test >/dev/null || status=1
-python3 "$PACKAGE/skills/revise-rdb-physical/scripts/update-guard.py" self-test >/dev/null || status=1
-python3 "$PACKAGE/internal/physical-design/scripts/physical_design.py" self-test >/dev/null || status=1
+python3 "$PACKAGE/skills/design-rdb-physical/scripts/physical_design.py" --self-test >/dev/null || status=1
 
 write_doc_examples="$ROOT/../write-doc-plugins/plugins/write-doc/skills/write-doc/assets/examples"
 physical_example="$write_doc_examples/rdb-physical-design.example.md"
 logical_example="$write_doc_examples/rdb-logical-data-modeling.example.md"
 if [ -f "$physical_example" ] && [ -f "$logical_example" ]; then
-  python3 "$PACKAGE/internal/physical-design/scripts/physical_design.py" check \
-    --model-file "$logical_example" --product PostgreSQL --version 16.4 \
-    < "$physical_example" >/dev/null || status=1
+  python3 "$PACKAGE/skills/design-rdb-physical/scripts/physical_design.py" \
+    --model-file "$logical_example" --design-file "$physical_example" >/dev/null || status=1
 else
   echo '[error] write-docのRDB物理設計・論理設計の配布例が無い' >&2
   status=1
