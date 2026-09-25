@@ -1,5 +1,5 @@
 # Validation
 
-`scripts/validate.sh`は、workspaceのplugin package構造契約、両marketplaceと両manifestのidentity、公開2入口と内部1skillの集合、playbookの依存と参照、入力path検査、同一path更新guard、物理設計本文検査の正例・反例・境界例を確認する。
+`scripts/validate.sh` は、workspace の plugin package 構造契約、両 marketplace と両 manifest の identity、公開入口が `design-rdb-physical` の一つだけであること、`physical_design.py` の self-test、write-doc の見本の論理データモデルと物理設計で業務制約と物理制約の名前が一対一に対応することを確かめる。
 
-物理設計の意味上の妥当性、indexや分離レベルの選択、負荷・品質・基盤制約の統合、仮説と実証の区別は、検査scriptの成功だけでなく、対象の資料とskill本文を読んで評価する。
+物理写像が業務の意味を保つか、index と Read、分離レベルと繰り返しの回数、検証状態が証拠に支えられているかは、検査ではなく、資料と SKILL.md を読んで評価する。
