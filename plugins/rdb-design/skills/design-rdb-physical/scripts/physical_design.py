@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""RDB物理設計の物理制約が、論理データモデルの業務制約と名前で一対一に対応するかを検査する。
+"""RDB物理設計の物理制約が、コマンドデータモデルの業務制約と名前で一対一に対応するかを検査する。
 
-目印: write-doc の rdb-logical-data-modeling 型の `#### 業務制約: <名前>` の行と、rdb-physical-design 型の
+目印: write-doc の command-data-model 型の `#### 業務制約: <名前>` の行と、rdb-physical-design 型の
   見出し行が `| 制約名 | 対象 | 実現方法 | 適用時点 | 違反時の扱い |` の表。見出しの文言は読まない。
-入力: --model-file に論理データモデル資料、--design-file に物理設計資料の絶対パス。
+入力: --command-model-file にコマンドデータモデル資料、--design-file に物理設計資料の絶対パス。
 合格述語: 物理制約の表がちょうど一つあり、その制約名の集合が業務制約の名前の集合と一致する。名前は前後の空白と backtick を除いて比べる。
 失敗時の診断: {"problem"} の JSON を1行ずつ標準出力へ出し、終了コード 1。入力を読めなければ {"error"} と終了コード 2。
 正例: self-test の sample と、write-doc の rdb-physical-design の見本。
@@ -71,38 +71,38 @@ def physical_constraints(text, problems):
 
 def check(model_text, design_text):
     problems = []
-    logical = business_constraints(model_text)
+    business = business_constraints(model_text)
     physical = physical_constraints(design_text, problems)
     if not problems:
-        problems += [f"論理データモデルの業務制約『{n}』が物理制約の表に無い" for n in sorted(logical - physical)]
-        problems += [f"物理制約の表の『{n}』は論理データモデルの業務制約に無い" for n in sorted(physical - logical)]
+        problems += [f"コマンドデータモデルの業務制約『{n}』が物理制約の表に無い" for n in sorted(business - physical)]
+        problems += [f"物理制約の表の『{n}』はコマンドデータモデルの業務制約に無い" for n in sorted(physical - business)]
     return problems
 
 
 def self_test():
-    logical = "# 論理\n### `reservation`\n#### 業務制約: 同じ利用枠に有効な予約は一つ\n"
+    model = "# コマンドデータモデル\n### `reservation`\n#### 業務制約: 同じ利用枠に有効な予約は一つ\n"
     header = "| 制約名 | 対象 | 実現方法 | 適用時点 | 違反時の扱い |\n|---|---|---|---|---|\n"
     design = "# 物理\n## 重複予約は排他制約で拒む\n" + header + "| 同じ利用枠に有効な予約は一つ | reservation | 排他制約 | 即時 | 拒否 |\n"
-    assert check(logical, design) == []
-    assert check(logical + "#### 業務制約: 取消は開始前まで\n", design)
-    assert check(logical, design.replace("| 同じ利用枠に有効な予約は一つ |", "| 予約は重ならない |"))
-    assert check(logical, "# 物理\n")
+    assert check(model, design) == []
+    assert check(model + "#### 業務制約: 取消は開始前まで\n", design)
+    assert check(model, design.replace("| 同じ利用枠に有効な予約は一つ |", "| 予約は重ならない |"))
+    assert check(model, "# 物理\n")
     emit({"self_test": "passed", "cases": 4})
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model-file")
+    parser.add_argument("--command-model-file")
     parser.add_argument("--design-file")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
     if args.self_test:
         self_test()
         return
-    if not args.model_file or not args.design_file:
-        emit({"error": "--model-file と --design-file を渡す"})
+    if not args.command_model_file or not args.design_file:
+        emit({"error": "--command-model-file と --design-file を渡す"})
         raise SystemExit(2)
-    problems = check(read_text(args.model_file, "論理データモデル資料"), read_text(args.design_file, "物理設計資料"))
+    problems = check(read_text(args.command_model_file, "コマンドデータモデル資料"), read_text(args.design_file, "物理設計資料"))
     for problem in problems:
         emit({"problem": problem})
     raise SystemExit(1 if problems else 0)
