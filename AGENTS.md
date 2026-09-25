@@ -11,7 +11,7 @@
 - 技術列、派生表、冗長化、materialized view、partitionなど、業務意味を変えない物理写像は物理設計に置ける。論理表との1対1対応を要求しない。一次データ、同期、再構築、撤去方法を明示する。
 - HA/DR、cloud service、network、computeの全体構成は所有しない。入力された基盤構成がRDBの整合性、Read鮮度、transaction、復旧へ与える影響だけを扱う。
 - 実機測定が無い設計判断を実証済みにしない。公式仕様に基づく設計、仮説、実機で確認済みの結果を区別し、未実測なら検証計画と見直し条件を残す。
-- 資料のtemplateを持たない。成果物の節構成と記法は、保存に使う`write-doc`の`rdb-physical-design`型が所有する。
+- 資料のtemplateを持たない。成果物の節構成は、保存に使う`write-doc`の`rdb-physical-design`型が所有する。検査が読む目印は`write-doc`の公開契約の「検査が読む目印」が所有し、`physical_design.py`はそれだけを読む。見出しの文言は読まない。
 - 利用者へ問う場面は公開playbook `grill`へ委ね、正式な定義の保存は公開playbook `write-doc`へ委ねる。外部packageの内部実装を参照しない。
 - install cache、隣接repository、利用者の正式な定義、外部環境を直接変更しない。このsource treeだけを編集する。
 - 変更後は`bash scripts/validate.sh`と、workspace rootの`bash scripts/validate.sh <このrepositoryの絶対path>`を実行する。
