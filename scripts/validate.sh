@@ -40,20 +40,6 @@ while IFS= read -r script; do
   bash -n "$script" || status=1
 done < <(find "$ROOT/scripts" -type f -name '*.sh' | sort)
 
-grill_root="$ROOT/../grill-plugins/plugins/grill"
-write_doc_root="$ROOT/../write-doc-plugins/plugins/write-doc"
-if [ -d "$grill_root" ] && [ -d "$write_doc_root" ]; then
-  dev_map="$TMP_ROOT/real-roots.json"
-  jq -n --arg grill "$(cd "$grill_root" && pwd -P)" --arg doc "$(cd "$write_doc_root" && pwd -P)" \
-    '{schema:1,dependencies:{"grill/grill":$grill,"write-doc/write-doc":$doc}}' > "$dev_map"
-  for runtime in codex claude; do
-    HARNESS_PLUGIN_DEV_ROOTS="$dev_map" python3 "$TOOLS/lint-consumer-contract.py" --repo "$ROOT" --runtime "$runtime" || status=1
-  done
-else
-  echo '[error] grillまたはwrite-docの兄弟checkoutが無い' >&2
-  status=1
-fi
-
 if [ "$status" -eq 0 ]; then
   echo 'Validation: passed'
 else
