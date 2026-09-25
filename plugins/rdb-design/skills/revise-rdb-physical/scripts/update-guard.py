@@ -23,7 +23,7 @@ def check(existing, output):
     if not problems and not os.path.isfile(existing):
         problems.append(f"existingは既存の通常fileではない: {existing}")
     if not problems and os.path.realpath(existing) != os.path.realpath(output):
-        problems.append("既存の正式な定義と更新先が同じ実体ではない")
+        problems.append("既存の物理設計資料と更新先が同じ実体ではない")
     if problems:
         for problem in problems:
             emit({"error": problem})

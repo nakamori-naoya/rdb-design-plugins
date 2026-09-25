@@ -1,6 +1,6 @@
 version: 2
 name: revise-rdb-physical
-description: 既存RDB物理設計を負荷変化、競合、障害、実行計画、DBMS版変更で反証し、同じ正式な定義へ更新する
+description: 既存RDB物理設計を負荷変化、競合、障害、実行計画、DBMS版変更で反証し、同じ物理設計資料へ更新する
 inputs: [user_input, existing_physical_document_path, logical_document_path, database_product, database_version, requirements_document_path, workload_document_path, quality_document_path, architecture_document_path, evidence_paths, references]
 
 requires:
@@ -10,7 +10,7 @@ requires:
 steps:
   - id: preflight-inputs
     script: scripts/input_paths.py
-    purpose: 既存物理設計の正式な定義、論理モデルの正式な定義、任意の上流の基準資料と証拠pathを改訂前に検査する
+    purpose: 既存の物理設計資料、論理データモデル資料、任意の上流の基準資料と証拠pathを改訂前に検査する
     needs: [existing_physical_document_path, logical_document_path, requirements_document_path, workload_document_path, quality_document_path, architecture_document_path, evidence_paths, references]
     provides: [validated_input_paths]
 
@@ -34,13 +34,13 @@ steps:
 
   - id: guard-update
     script: scripts/update-guard.py
-    purpose: 更新先が入力された既存物理設計の正式な定義と同じ実体であることを検査する
+    purpose: 更新先が入力された既存の物理設計資料と同じ実体であることを検査する
     needs: [existing_physical_document_path, requested_output_path, physical_validation_report]
     provides: [update_target]
 
   - id: update-document
     playbook: write-doc
-    purpose: 検査済み本文をrdb-physical-design型で既存の正式な定義と同じpathへ保存する
+    purpose: 検査済み本文をrdb-physical-design型で既存の物理設計資料と同じpathへ保存する
     input:
       document_type: rdb-physical-design
     needs: [physical_final_markdown, physical_validation_report, update_target, references]
