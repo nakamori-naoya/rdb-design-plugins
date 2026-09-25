@@ -3,7 +3,7 @@
   "owner": {
     "name": "NaoyaNakamori"
   },
-  "description": "論理モデルと負荷・品質・基盤制約からRDB物理設計を作成・改訂するmarketplace",
+  "description": "データモデルと負荷・品質・基盤制約からRDB物理設計を作成・改訂するmarketplace",
   "plugins": [
     {
       "name": "rdb-design",

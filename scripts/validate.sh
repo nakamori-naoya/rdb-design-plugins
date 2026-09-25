@@ -23,12 +23,12 @@ python3 "$PACKAGE/skills/design-rdb-physical/scripts/physical_design.py" --self-
 
 write_doc_examples="$ROOT/../write-doc-plugins/plugins/write-doc/skills/write-doc/assets/examples"
 physical_example="$write_doc_examples/rdb-physical-design.example.md"
-logical_example="$write_doc_examples/rdb-logical-data-modeling.example.md"
-if [ -f "$physical_example" ] && [ -f "$logical_example" ]; then
+command_example="$write_doc_examples/command-data-model.example.md"
+if [ -f "$physical_example" ] && [ -f "$command_example" ]; then
   python3 "$PACKAGE/skills/design-rdb-physical/scripts/physical_design.py" \
-    --model-file "$logical_example" --design-file "$physical_example" >/dev/null || status=1
+    --command-model-file "$command_example" --design-file "$physical_example" >/dev/null || status=1
 else
-  echo '[error] write-docのRDB物理設計・論理設計の配布例が無い' >&2
+  echo '[error] write-docのRDB物理設計・コマンドデータモデルの見本が無い' >&2
   status=1
 fi
 
