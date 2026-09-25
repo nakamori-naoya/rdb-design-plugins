@@ -51,4 +51,5 @@ description: 論理上の意味と不変条件を保ち、要求・負荷・品�
 - `physical_final_markdown`
 - `physical_validation_report`
 - `status`: 未決や`planned`が残らなければ`ready`、残れば`unresolved`
+- 改訂時だけ`requested_output_path`: 保存先として求めるpath。`existing_physical_document_path`と同じ絶対pathにし、別のpathを返さない
 - 論理側または基盤側への差し戻し事項
