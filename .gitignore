@@ -1,3 +1,6 @@
 __pycache__/
 *.pyc
 .DS_Store
+
+# claude plugin eval の実行結果
+/evals/results/

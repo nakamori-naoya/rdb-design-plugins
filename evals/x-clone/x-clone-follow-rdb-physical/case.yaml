@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: x-clone-follow-rdb-physical
+context:
+  scaffold_script: scaffold.sh
