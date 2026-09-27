@@ -15,16 +15,10 @@ python3 "$TOOLS/validate-plugin-repository.py" --self-test || status=1
 
 python3 "$PACKAGE/skills/design-rdb-physical/scripts/physical_design.py" --self-test >/dev/null || status=1
 
-write_doc_examples="$ROOT/../write-doc-plugins/plugins/write-doc/skills/write-doc/assets/examples"
-physical_example="$write_doc_examples/rdb-physical-design.example.md"
-command_example="$write_doc_examples/command-data-model.example.md"
-if [ -f "$physical_example" ] && [ -f "$command_example" ]; then
-  python3 "$PACKAGE/skills/design-rdb-physical/scripts/physical_design.py" \
-    --command-model-file "$command_example" --design-file "$physical_example" >/dev/null || status=1
-else
-  echo '[error] write-docのRDB物理設計・コマンドデータモデルの見本が無い' >&2
-  status=1
-fi
+# 正例は、この repository の fixture（write-doc の見本の抜粋）で持ち、兄弟の write-doc の見本を読まない
+fixtures="$ROOT/tests/fixtures/library-lending"
+python3 "$PACKAGE/skills/design-rdb-physical/scripts/physical_design.py" \
+  --command-model-file "$fixtures/command-data-model.md" --design-file "$fixtures/rdb-physical-design.md" >/dev/null || status=1
 
 while IFS= read -r script; do
   PYTHONPYCACHEPREFIX="$TMP_ROOT/pycache" python3 -m py_compile "$script" || status=1

@@ -6,7 +6,7 @@
 入力: --command-model-file にコマンドデータモデル資料、--design-file に物理設計資料の絶対パス。
 合格述語: 物理制約の表がちょうど一つあり、その制約名の集合が業務制約の名前の集合と一致する。名前は前後の空白と backtick を除いて比べる。
 失敗時の診断: {"problem"} の JSON を1行ずつ標準出力へ出し、終了コード 1。入力を読めなければ {"error"} と終了コード 2。
-正例: self-test の sample と、write-doc の rdb-physical-design の見本。
+正例: self-test の sample と、repository の tests/fixtures/library-lending（write-doc の見本の抜粋）。
 反例: self-test の、物理制約の表に無い業務制約、業務制約に無い物理制約、物理制約の表が無い資料。
 境界例: 見出しに結論を入れた資料は通る。
 意味評価として残す範囲: 物理制約が業務制約を本当に守るか、物理写像、index と Read、分離レベルと繰り返しの回数、検証状態の妥当性。
