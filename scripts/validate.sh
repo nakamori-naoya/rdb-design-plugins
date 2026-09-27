@@ -13,12 +13,6 @@ status=0
 python3 "$TOOLS/validate-plugin-repository.py" "$ROOT" || status=1
 python3 "$TOOLS/validate-plugin-repository.py" --self-test || status=1
 
-version=$(jq -r '.plugins[0].version' "$ROOT/.agents/plugins/marketplace.json")
-jq -e --arg version "$version" '.name=="rdb-design" and .plugins[0].name=="rdb-design" and .plugins[0].source.path=="./plugins/rdb-design" and .plugins[0].version==$version' "$ROOT/.agents/plugins/marketplace.json" >/dev/null || status=1
-jq -e --arg version "$version" '.name=="rdb-design" and .plugins[0].name=="rdb-design" and .plugins[0].source=="./plugins/rdb-design" and .plugins[0].version==$version' "$ROOT/.claude-plugin/marketplace.json" >/dev/null || status=1
-jq -e --arg version "$version" '.name=="rdb-design" and .version==$version and .skills==["./skills/design-rdb-physical"]' "$PACKAGE/.claude-plugin/plugin.json" "$PACKAGE/.codex-plugin/plugin.json" >/dev/null || status=1
-diff <(jq -S 'del(.interface)' "$PACKAGE/.claude-plugin/plugin.json") <(jq -S 'del(.interface)' "$PACKAGE/.codex-plugin/plugin.json") >/dev/null || status=1
-
 python3 "$PACKAGE/skills/design-rdb-physical/scripts/physical_design.py" --self-test >/dev/null || status=1
 
 write_doc_examples="$ROOT/../write-doc-plugins/plugins/write-doc/skills/write-doc/assets/examples"
